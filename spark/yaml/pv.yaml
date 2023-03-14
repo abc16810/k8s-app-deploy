@@ -1,0 +1,27 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: spark-history-pv-claim
+  namespace: spark
+spec:
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+
+# spark.kubernetes.file.upload.path
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: spark-source-dirs
+  namespace: spark
+spec:
+  storageClassName: nfs-client
+  accessModes:
+   - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi

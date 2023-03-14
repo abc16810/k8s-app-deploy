@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark
+  labels:
+   name: spark
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: spark
+  name: spark
+  namespace: spark
+
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app: spark
+  name: spark
+  namespace: spark
+rules:
+  - apiGroups:
+    - ""
+    resources:
+    - services
+    - endpoints
+    - configmaps
+    - secrets
+    - persistentvolumeclaims
+    verbs:
+    - '*'
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    verbs:
+    - list
+    - get 
+    - update
+    - delete
+    - create
+    - deletecollection
+    - patch
+    - watch
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: spark
+  name: spark
+  namespace: spark
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark
+subjects:
+- kind: ServiceAccount
+  name: spark
+  namespace: spark
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-default-conf
+  namespace: spark
+  labels:
+    app: spark
+data:
+ spark-defaults.conf: |
+   spark.master=k8s\://https\://10.0.0.1\:443
+   spark.eventLog.enabled=true
+   spark.eventLog.dir=file\:///tmp/spark-events
+   spark.driver.log.dfsDir=/tmp/spark-events
+   spark.driver.log.persistToDfs.enabled=true
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.data.options.claimName=spark-history-pv-claim
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.data.mount.path=/tmp/spark-events
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.data.mount.readOnly=false
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.upload.options.claimName=spark-source-dirs
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.upload.mount.path=/opt/spark/work-dir
+   spark.kubernetes.driver.volumes.persistentVolumeClaim.upload.mount.readOnly=false
+   spark.kubernetes.executor.volumes.persistentVolumeClaim.upload.options.claimName=spark-source-dirs
+   spark.kubernetes.executor.volumes.persistentVolumeClaim.upload.mount.path=/opt/spark/work-dir
+   spark.kubernetes.executor.volumes.persistentVolumeClaim.upload.mount.readOnly=false
+   spark.kubernetes.driver.request.cores=1
+   spark.kubernetes.driver.limit.cores=1
+   spark.kubernetes.executor.request.cores=500m
+   spark.kubernetes.executor.limit.cores=500m
+   spark.kubernetes.node.selector.kubernetes.io/hostname=node01
+   spark.driver.port=30020
+   spark.kubernetes.driver.volumes.hostPath.spark-local-dir-1.options.path=/tmp/aaa
+   spark.kubernetes.driver.volumes.hostPath.spark-local-dir-1.mount.path=/var/data
+   spark.kubernetes.driver.volumes.hostPath.spark-local-dir-1.mount.readOnly=false
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-history-server
+  namespace: spark
+  labels:
+    app.kubernetes.io/name: spark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-history-server
+  template: 
+    metadata:
+      labels:      
+        app: spark-history-server
+    spec:
+     serviceAccountName: spark
+     hostname: spark-driver
+     #securityContext:
+     #  runAsUser: 0
+     containers:
+      - name: spark-history-server
+        image: apache/spark-py:v3.3.2
+        imagePullPolicy: "IfNotPresent"
+        args:
+          - /opt/spark/bin/spark-class
+          - org.apache.spark.deploy.history.HistoryServer
+        ports:
+         - containerPort: 18080
+           name: http
+         - containerPort: 4040
+           name: spark-ui
+           protocol: TCP
+        env:
+         - name:  SPARK_HISTORY_OPTS  # "-Dx=y"
+           value: "-Dspark.history.fs.logDirectory=file:/tmp/spark-events"
+        volumeMounts:
+          - name: data
+            mountPath: /tmp/spark-events
+          - name: config-volume
+            mountPath: /opt/spark/conf
+          - name: work-dir
+            mountPath: /opt/spark/work-dir
+     volumes:
+        - name: data
+          persistentVolumeClaim:
+              claimName: spark-history-pv-claim
+        - name: config-volume
+          configMap:
+            name: spark-default-conf
+        - name: work-dir
+          persistentVolumeClaim:
+              claimName: spark-source-dirs
+
+     nodeSelector:
+       kubernetes.io/hostname: "utility1"
+     tolerations:
+      - effect: "NoSchedule"
+        operator: "Exists"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-hs
+  namespace: spark
+spec:
+  ports:
+     - name: spark-history-server
+       port: 18080
+       targetPort: http
+       nodePort: 30080
+       protocol: TCP
+     - name: spark-ui
+       port: 4040
+       targetPort: spark-ui
+       nodePort: 30040
+  type: NodePort
+  selector:
+    app: spark-history-server
