@@ -101,6 +101,7 @@ data:
    spark.kubernetes.driver.volumes.hostPath.spark-local-dir-1.mount.path=/var/data
    spark.kubernetes.driver.volumes.hostPath.spark-local-dir-1.mount.readOnly=false
 
+   spark.io.compression.codec=lz4
 ---
 
 apiVersion: apps/v1
