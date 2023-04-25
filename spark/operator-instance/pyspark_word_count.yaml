@@ -1,0 +1,72 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: structured-network-wordcount
+  namespace: spark
+spec:
+  type: Python
+  mode: cluster
+  image: apache/my-spark-py:v3.3.2
+  pythonVersion: "3"
+  mainApplicationFile: local:///opt/spark/work-dir/wordcount_with_watermark.py
+  sparkVersion: "3.3.2"
+  restartPolicy:
+     type: OnFailure
+  nodeSelector:
+    kubernetes.io/hostname: node01
+  sparkConf:
+    "spark.eventLog.enabled": "true"
+    "spark.eventLog.dir": "file:///tmp/spark-events"
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: spark-history-pv-claim
+    - name: work-dir
+      persistentVolumeClaim:
+        claimName: spark-source-dirs
+    - name: "spark-local-dir-1"
+      hostPath:
+        path: "/tmp/spark-local-dir"
+
+  driver:
+    coreRequest: "1"
+    coreLimit: "1200m"
+    memory: "512m"
+    podSecurityContext:
+      runAsUser: 1000
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsUser: 2000    
+    labels:
+      version: 3.3.2
+    serviceAccount: my-release-spark
+    lifecycle:
+      preStop:
+        exec:
+          command:
+          - /bin/bash
+          - -c
+          - touch /var/run/killspark && sleep 65
+    volumeMounts:
+      - name: data
+        mountPath: /tmp/spark-events
+      - name: work-dir
+        mountPath: /opt/spark/work-dir
+  executor:
+    coreRequest: "1"
+    instances: 1
+    memory: "512m"
+    podSecurityContext:
+      runAsUser: 1000
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsUser: 2000
+    labels:
+      version: 3.3.2
+    volumeMounts:
+      - name: "spark-local-dir-1"
+        mountPath: "/tmp/spark-local-dir"
+      - name: data
+        mountPath: /tmp/spark-events
+      - name: work-dir
+        mountPath: /opt/spark/work-dir
