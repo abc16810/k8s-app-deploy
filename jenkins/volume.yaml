@@ -14,9 +14,9 @@ metadata:
 spec:
   storageClassName: local-storage
   capacity:
-    storage: 10Gi
+    storage: 100Gi
   claimRef:   # 预留 只允许如下pvc进行绑定
-    name: jenkins-pv-claim
+    name: jenkins-pvc-claim
     namespace: devops-tools
   accessModes:
     - ReadWriteOnce
@@ -34,7 +34,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: jenkins-pv-claim
+  name: jenkins-pvc-claim
   namespace: devops-tools
 spec:
   storageClassName: local-storage
@@ -42,4 +42,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 100Gi

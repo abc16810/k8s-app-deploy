@@ -48,27 +48,38 @@ kubectl exec -it jenkins-xxx cat /var/jenkins_home/secrets/initialAdminPassword 
 **安装配置kubernetes插件**
 ![](./images/3.png)
 
-Kubernetes和Jenkins的配置信息
+
+#### Kubernetes和Jenkins的配置信息
+
 配置管理->系统配置->节点管理->配置clouds
 ![](./images/4.png)
 
+**连接k8s配置**
+- 名称为： kubernetes (在Jenkins Cloud中的其他实例中唯一标识此云实例)
 - 其中Kubernetes命名空间填写我们Jenkins所在的命名空间
-- Kubernetes 地址 填写kube-api地址或者域名
-测试链接-通过 如下
+- Kubernetes 地址: 填写kube-api地址或者域名 如：https://10.0.0.1  由于jenkins在k8s集群中安装，直接用service地址,不用再配置证书和凭据。如果jenkins部署不在k8s集群中 Kubernetes 地址: https://ip:6443，并且凭据下选择相应的权限的用户凭据
+
 ![](./images/5.png)
 
 如果连接测试失败，很可能是权限问题，我们就需要把ServiceAccount的凭证jenkins-admin添加进来。
 
 Jenkins 地址 `http://jenkins-service.devops-tools:8080`
+Jenkins 通道 `jenkins-service.devops-tools:50000`
+
+**配置pod label**
+所有由插件启动的pod的标签。匹配这些标签的pod计入并发限制。如果没有配置，所有pod将默认使用jenkins=slave创建。根据实际情况配置label
+
 
 **配置Pod模板**
 
-name: pod的名字。
-namespace: pod的命名空间。
-label: 这就是在通过节点步骤请求代理时可以引用pod模板的方式，创建任务是需要指定该label才能调用
+name: pod的名称前缀。
+namespace: pod的运行的命名空间。
+label: 这就是在通过节点步骤请求代理时可以引用pod模板的方式，创建任务是需要指定该label才能调用。如脚本Pipe node('label 名称'){}, 声明Pipe `agent {
+ label 'woker'  // 指定节点 }`
 
 ![](./images/6.png)
 
+容器模板指定要启动的自定义容器，另外一个名为jnlp的容器被自动创建，并运行Jenkins jnlp代理服务。为了替换默认的JNLP代理，使用自定义JNLP映像的容器的名称必须是JNLP。如下配置pod将启动两个容器一个名称为inbound-agent，一个名称为jnlp
 ![](./images/7.png)
 
 另外需要挂载两个主机目录：
@@ -76,7 +87,7 @@ label: 这就是在通过节点步骤请求代理时可以引用pod模板的方�
     /var/run/docker.sock：该文件是用于 Pod 中的容器能够共享宿主机的 Docker；
     /root/.kube：这个目录挂载到容器的/root/.kube目录下面这是为了让我们能够在 Pod 的容器中能够使用 kubectl 工具来访问我们的 Kubernetes 集群，方便我们后面在 Slave Pod 部署 Kubernetes 应用；
 
-使用yaml定义Pod模板
+使用yaml定义名为jnlp容器模板
 ```
 spec:   
    tolerations:
@@ -94,7 +105,7 @@ spec:
 ```
 节点选择器
 ```
-kubernetes.io/hostname=utility1
+kubernetes.io/hostname=node03
 ```
 
 #### 在slave中运行Pipeline

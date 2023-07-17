@@ -4,10 +4,14 @@ metadata:
   name: jenkins-service
   namespace: devops-tools
 spec:
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 8080
-    nodePort: 32000
+  type: ClusterIP
   selector:
     app: jenkins-server
+  ports:
+  - name: web
+    port: 8080
+    targetPort: httpport
+
+  - name: agent
+    port: 50000
+    targetPort: jnlpport

@@ -17,6 +17,19 @@ spec:
             fsGroup: 1000
             runAsUser: 1000
       serviceAccountName: jenkins-admin
+      tolerations:
+       - effect: NoSchedule
+         operator: Exists
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: disktype
+                operator: NotIn
+                values:
+                - ssd   
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts
@@ -27,6 +40,15 @@ spec:
             requests:
               memory: "1000Mi"
               cpu: "1000m"
+          env:
+           - name: LIMITS_MEMORY
+             valueFrom:
+               resourceFieldRef:
+                 resource: limits.memory
+                 divisor: Gi
+           - name: JAVA_OPTS  #设置变量，指定时区和 jenkins slave 执行者设置
+             value: "-Duser.timezone=Asia/Shanghai"
+
           ports:
             - name: httpport
               containerPort: 8080
@@ -54,4 +76,4 @@ spec:
       volumes:
         - name: jenkins-data
           persistentVolumeClaim:
-              claimName: jenkins-pv-claim
+              claimName: jenkins-pvc-claim
